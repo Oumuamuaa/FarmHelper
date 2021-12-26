@@ -1,0 +1,429 @@
+
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+
+# Input data files are available in the read-only "../input/" directory
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+import os
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+
+# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using "Save & Run All" 
+# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session
+import os
+import torch
+import torchvision
+import tarfile
+from torchvision.datasets.utils import download_url
+from torch.utils.data import random_split
+data_dir = '../input/plantseedlings/plant-seedlings-final/train'
+
+print(os.listdir(data_dir))
+classes = os.listdir(data_dir)
+print(len(classes))
+['Scentless Mayweed', 'Common wheat', 'Charlock', 'Black-grass', 'Sugar beet', 'Loose Silky-bent', 'Maize', 'Cleavers', 'Common Chickweed', 'Fat Hen', 'Small-flowered Cranesbill', 'Shepherds Purse']
+12
+import matplotlib
+import matplotlib.pyplot as plt
+%matplotlib inline
+
+matplotlib.rcParams['figure.facecolor'] = '#ffffff'
+black_grass_files = os.listdir(data_dir + "/Black-grass")
+print('No. of training examples for black grass:', len(black_grass_files))
+No. of training examples for black grass: 210
+from torchvision.datasets import ImageFolder
+from torchvision.transforms import ToTensor
+from torchvision import transforms
+dataset = ImageFolder(data_dir,transform = transforms.Compose([
+    transforms.Resize((28,28)),transforms.ToTensor()
+]))
+test = ImageFolder(data_dir,transform = transforms.Compose([
+    transforms.Resize((28,28)),transforms.ToTensor()
+]))
+img, label = dataset[0]
+print(img.shape, label)
+img
+torch.Size([3, 28, 28]) 0
+tensor([[[0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0039],
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000],
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000],
+         ...,
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000],
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000],
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000]],
+
+        [[0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0039],
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000],
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000],
+         ...,
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000],
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000],
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000]],
+
+        [[0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0039],
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000],
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000],
+         ...,
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000],
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000],
+         [0.0000, 0.0000, 0.0000,  ..., 0.0000, 0.0000, 0.0000]]])
+print(dataset.classes)
+print("lenth of dataset is :::",len(dataset))
+['Black-grass', 'Charlock', 'Cleavers', 'Common Chickweed', 'Common wheat', 'Fat Hen', 'Loose Silky-bent', 'Maize', 'Scentless Mayweed', 'Shepherds Purse', 'Small-flowered Cranesbill', 'Sugar beet']
+lenth of dataset is ::: 3794
+def show_example(img, label):
+    print('Label: ', dataset.classes[label], "("+str(label)+")")
+    plt.imshow(img.permute(1, 2, 0))
+show_example((*dataset[100]))
+Label:  Black-grass (0)
+
+show_example(*dataset[1222])
+Label:  Common Chickweed (3)
+
+random_seed = 42
+torch.manual_seed(random_seed);
+val_size = 200
+train_size = len(dataset) - val_size
+
+train_ds, val_ds = random_split(dataset, [train_size, val_size])
+len(train_ds), len(val_ds)
+(3594, 200)
+from torch.utils.data.dataloader import DataLoader
+
+batch_size=128
+train_dl = DataLoader(train_ds, batch_size, shuffle=True, num_workers=4, pin_memory=True)
+val_dl = DataLoader(val_ds, batch_size*2, num_workers=4, pin_memory=True)
+from torchvision.utils import make_grid
+
+def show_batch(dl):
+    for images, labels in dl:
+        #images = torch.flatten(images, start_dim=0, end_dim=-1)
+        fig, ax = plt.subplots(figsize=(16, 12))
+        ax.set_xticks([]); ax.set_yticks([])
+        ax.imshow(make_grid(images, nrow=16).permute(1, 2, 0))
+        break
+show_batch(train_dl)
+
+def apply_kernel(image, kernel):
+    ri, ci = image.shape       # image dimensions
+    rk, ck = kernel.shape      # kernel dimensions
+    ro, co = ri-rk+1, ci-ck+1  # output dimensions
+    output = torch.zeros([ro, co])
+    for i in range(ro): 
+        for j in range(co):
+            output[i,j] = torch.sum(image[i:i+rk,j:j+ck] * kernel)
+    return output
+import torch.nn as nn
+import torch.nn.functional as F
+simple_model = nn.Sequential(
+    nn.Conv2d(3, 8, kernel_size=3, stride=1, padding=1),
+    nn.MaxPool2d(2, 2)
+)
+for images, labels in train_dl:
+    print('images.shape:', images.shape)
+    out = simple_model(images)
+    print('out.shape:', out.shape)
+    break
+images.shape: torch.Size([128, 3, 28, 28])
+out.shape: torch.Size([128, 8, 14, 14])
+class ImageClassificationBase(nn.Module):
+    
+    def training_step(self, batch):
+        images, labels = batch 
+        out = self(images)                  # Generate predictions
+        loss = F.cross_entropy(out, labels) # Calculate loss
+        return loss
+    
+    def validation_step(self, batch):
+        images, labels = batch 
+        out = self(images)                    # Generate predictions
+        loss = F.cross_entropy(out, labels)   # Calculate loss
+        acc = accuracy(out, labels)           # Calculate accuracy
+        return {'val_loss': loss.detach(), 'val_acc': acc}
+        
+    def validation_epoch_end(self, outputs):
+        batch_losses = [x['val_loss'] for x in outputs]
+        epoch_loss = torch.stack(batch_losses).mean()   # Combine losses
+        batch_accs = [x['val_acc'] for x in outputs]
+        epoch_acc = torch.stack(batch_accs).mean()      # Combine accuracies
+        return {'val_loss': epoch_loss.item(), 'val_acc': epoch_acc.item()}
+    
+    def epoch_end(self, epoch, result):
+        print("Epoch [{}], train_loss: {:.4f}, val_loss: {:.4f}, val_acc: {:.4f}".format(
+            epoch, result['train_loss'], result['val_loss'], result['val_acc']))
+    def accuracy(outputs, labels):
+        _, preds = torch.max(outputs, dim=1)
+        return torch.tensor(torch.sum(preds == labels).item() / len(preds))    
+class PlantCnnModel(ImageClassificationBase):
+    def __init__(self):
+        super().__init__()
+        self.network = nn.Sequential(
+            
+            nn.Conv2d(3, 32, kernel_size = 3, padding = 1),
+            nn.ReLU(),
+            nn.Conv2d(32,64, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(),
+            nn.MaxPool2d(2,2),
+        
+            nn.Conv2d(64, 128, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(),
+            nn.Conv2d(128 ,128, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(),
+            nn.MaxPool2d(2,2),
+            
+            nn.Conv2d(128, 256, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(),
+            nn.Conv2d(256,256, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(),
+            nn.MaxPool2d(2,2),
+            
+            nn.Flatten(),
+            nn.Linear(2304,1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Linear(512,13)
+        )
+    def forward(self, xb):
+        return self.network(xb)
+model = PlantCnnModel()
+model
+PlantCnnModel(
+  (network): Sequential(
+    (0): Conv2d(3, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    (1): ReLU()
+    (2): Conv2d(32, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    (3): ReLU()
+    (4): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+    (5): Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    (6): ReLU()
+    (7): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    (8): ReLU()
+    (9): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+    (10): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    (11): ReLU()
+    (12): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    (13): ReLU()
+    (14): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+    (15): Flatten(start_dim=1, end_dim=-1)
+    (16): Linear(in_features=2304, out_features=1024, bias=True)
+    (17): ReLU()
+    (18): Linear(in_features=1024, out_features=512, bias=True)
+    (19): ReLU()
+    (20): Linear(in_features=512, out_features=13, bias=True)
+  )
+)
+for images, labels in train_dl:
+    print('images.shape:', images.shape)
+    out = model(images)
+    print('out.shape:', out.shape)
+    print('out[0]:', out[0])
+    break
+images.shape: torch.Size([128, 3, 28, 28])
+out.shape: torch.Size([128, 13])
+out[0]: tensor([-0.0105,  0.0320,  0.0213,  0.0475, -0.0170, -0.0247, -0.0136,  0.0121,
+        -0.0299, -0.0193, -0.0369,  0.0043, -0.0098], grad_fn=<SelectBackward>)
+def get_default_device():
+    """Pick GPU if available, else CPU"""
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    else:
+        return torch.device('cpu')
+    
+def to_device(data, device):
+    """Move tensor(s) to chosen device"""
+    if isinstance(data, (list,tuple)):
+        return [to_device(x, device) for x in data]
+    return data.to(device, non_blocking=True)
+
+class DeviceDataLoader():
+    """Wrap a dataloader to move data to a device"""
+    def __init__(self, dl, device):
+        self.dl = dl
+        self.device = device
+        
+    def __iter__(self):
+        """Yield a batch of data after moving it to device"""
+        for b in self.dl: 
+            yield to_device(b, self.device)
+
+    def __len__(self):
+        """Number of batches"""
+        return len(self.dl)
+device = get_default_device()
+device
+device(type='cuda')
+train_dl = DeviceDataLoader(train_dl, device)
+val_dl = DeviceDataLoader(val_dl, device)
+to_device(model, device);
+def accuracy(outputs, labels):
+    _, preds = torch.max(outputs, dim=1)
+    return torch.tensor(torch.sum(preds == labels).item() / len(preds))
+
+@torch.no_grad()
+def evaluate(model, val_loader):
+    model.eval()
+    outputs = [model.validation_step(batch) for batch in val_loader]
+    return model.validation_epoch_end(outputs)
+
+  
+def fit(epochs, lr, model, train_loader, val_loader, opt_func = torch.optim.SGD):
+    
+    history = []
+    optimizer = opt_func(model.parameters(),lr)
+    for epoch in range(epochs):
+        
+        model.train()
+        train_losses = []
+        for batch in train_loader:
+            loss = model.training_step(batch)
+            train_losses.append(loss)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            
+        result = evaluate(model, val_loader)
+        result['train_loss'] = torch.stack(train_losses).mean().item()
+        model.epoch_end(epoch, result)
+        history.append(result)
+    
+    return history
+model = to_device(PlantCnnModel(), device)
+evaluate(model, val_dl)
+{'val_loss': 2.559088945388794, 'val_acc': 0.15000000596046448}
+num_epochs = 30
+opt_func = torch.optim.Adam
+lr = 0.001
+history = fit(num_epochs, lr, model, train_dl, val_dl, opt_func)
+Epoch [0], train_loss: 2.4563, val_loss: 2.4488, val_acc: 0.1500
+Epoch [1], train_loss: 2.4149, val_loss: 2.3734, val_acc: 0.1500
+Epoch [2], train_loss: 2.1021, val_loss: 2.0854, val_acc: 0.3000
+Epoch [3], train_loss: 1.8950, val_loss: 1.9275, val_acc: 0.3550
+Epoch [4], train_loss: 1.7818, val_loss: 2.0313, val_acc: 0.2900
+Epoch [5], train_loss: 1.7356, val_loss: 1.6883, val_acc: 0.3500
+Epoch [6], train_loss: 1.5191, val_loss: 1.6225, val_acc: 0.4400
+Epoch [7], train_loss: 1.4081, val_loss: 1.5434, val_acc: 0.4550
+Epoch [8], train_loss: 1.3764, val_loss: 1.4456, val_acc: 0.4900
+Epoch [9], train_loss: 1.2780, val_loss: 1.4423, val_acc: 0.4950
+Epoch [10], train_loss: 1.1644, val_loss: 1.3185, val_acc: 0.5600
+Epoch [11], train_loss: 1.0004, val_loss: 1.1075, val_acc: 0.6250
+Epoch [12], train_loss: 0.9649, val_loss: 1.2545, val_acc: 0.5750
+Epoch [13], train_loss: 0.8530, val_loss: 1.0533, val_acc: 0.6400
+Epoch [14], train_loss: 0.7943, val_loss: 1.1469, val_acc: 0.6400
+Epoch [15], train_loss: 0.7074, val_loss: 0.9535, val_acc: 0.6850
+Epoch [16], train_loss: 0.6223, val_loss: 1.3349, val_acc: 0.5750
+Epoch [17], train_loss: 0.6888, val_loss: 0.8413, val_acc: 0.7100
+Epoch [18], train_loss: 0.5500, val_loss: 0.9674, val_acc: 0.7400
+Epoch [19], train_loss: 0.5052, val_loss: 0.8394, val_acc: 0.7150
+Epoch [20], train_loss: 0.4595, val_loss: 0.8594, val_acc: 0.7250
+Epoch [21], train_loss: 0.3838, val_loss: 0.9311, val_acc: 0.7350
+Epoch [22], train_loss: 0.3706, val_loss: 0.9538, val_acc: 0.7050
+Epoch [23], train_loss: 0.3429, val_loss: 0.8310, val_acc: 0.7300
+Epoch [24], train_loss: 0.2782, val_loss: 0.9461, val_acc: 0.7400
+Epoch [25], train_loss: 0.2426, val_loss: 0.9446, val_acc: 0.7600
+Epoch [26], train_loss: 0.2219, val_loss: 1.0700, val_acc: 0.7400
+Epoch [27], train_loss: 0.2115, val_loss: 1.3376, val_acc: 0.6950
+Epoch [28], train_loss: 0.3477, val_loss: 1.2874, val_acc: 0.6500
+Epoch [29], train_loss: 0.3883, val_loss: 0.8109, val_acc: 0.7500
+def plot_accuracies(history):
+    """ Plot the history of accuracies"""
+    accuracies = [x['val_acc'] for x in history]
+    plt.plot(accuracies, '-x')
+    plt.xlabel('epoch')
+    plt.ylabel('accuracy')
+    plt.title('Accuracy vs. No. of epochs');
+    
+
+plot_accuracies(history)
+
+def plot_losses(history):
+    """ Plot the losses in each epoch"""
+    train_losses = [x.get('train_loss') for x in history]
+    val_losses = [x['val_loss'] for x in history]
+    plt.plot(train_losses, '-bx')
+    plt.plot(val_losses, '-rx')
+    plt.xlabel('epoch')
+    plt.ylabel('loss')
+    plt.legend(['Training', 'Validation'])
+    plt.title('Loss vs. No. of epochs');
+
+plot_losses(history)
+
+history1 = fit(num_epochs, lr, model, train_dl, val_dl, opt_func)
+Epoch [0], train_loss: 0.2787, val_loss: 0.9042, val_acc: 0.7600
+Epoch [1], train_loss: 0.1612, val_loss: 0.9515, val_acc: 0.7650
+Epoch [2], train_loss: 0.1569, val_loss: 1.1075, val_acc: 0.8000
+Epoch [3], train_loss: 0.2086, val_loss: 1.0701, val_acc: 0.7750
+Epoch [4], train_loss: 0.2106, val_loss: 0.9503, val_acc: 0.7400
+Epoch [5], train_loss: 0.1279, val_loss: 1.2683, val_acc: 0.7550
+Epoch [6], train_loss: 0.1213, val_loss: 1.2298, val_acc: 0.7500
+Epoch [7], train_loss: 0.1610, val_loss: 1.0920, val_acc: 0.7750
+Epoch [8], train_loss: 0.1319, val_loss: 1.0433, val_acc: 0.7700
+Epoch [9], train_loss: 0.0987, val_loss: 1.3836, val_acc: 0.7750
+Epoch [10], train_loss: 0.1138, val_loss: 1.1139, val_acc: 0.7600
+Epoch [11], train_loss: 0.1151, val_loss: 1.0226, val_acc: 0.7850
+Epoch [12], train_loss: 0.1543, val_loss: 1.1966, val_acc: 0.7200
+Epoch [13], train_loss: 0.1329, val_loss: 1.1414, val_acc: 0.7550
+Epoch [14], train_loss: 0.1179, val_loss: 1.2746, val_acc: 0.7650
+Epoch [15], train_loss: 0.0909, val_loss: 1.2650, val_acc: 0.7800
+Epoch [16], train_loss: 0.0789, val_loss: 1.4888, val_acc: 0.7650
+Epoch [17], train_loss: 0.0837, val_loss: 1.5750, val_acc: 0.7400
+Epoch [18], train_loss: 0.1524, val_loss: 1.3666, val_acc: 0.7000
+Epoch [19], train_loss: 0.1338, val_loss: 1.2965, val_acc: 0.7250
+Epoch [20], train_loss: 0.0827, val_loss: 1.0499, val_acc: 0.7400
+Epoch [21], train_loss: 0.0786, val_loss: 1.3080, val_acc: 0.7650
+Epoch [22], train_loss: 0.0651, val_loss: 1.6115, val_acc: 0.7250
+Epoch [23], train_loss: 0.0815, val_loss: 1.3721, val_acc: 0.7150
+Epoch [24], train_loss: 0.1282, val_loss: 1.1700, val_acc: 0.7350
+Epoch [25], train_loss: 0.0786, val_loss: 1.6006, val_acc: 0.7250
+Epoch [26], train_loss: 0.0695, val_loss: 1.3290, val_acc: 0.7750
+Epoch [27], train_loss: 0.0475, val_loss: 1.4695, val_acc: 0.7650
+Epoch [28], train_loss: 0.0500, val_loss: 1.9044, val_acc: 0.7250
+Epoch [29], train_loss: 0.2013, val_loss: 1.0293, val_acc: 0.7650
+def plot_accuracies(history1):
+    """ Plot the history of accuracies"""
+    accuracies = [x['val_acc'] for x in history1]
+    plt.plot(accuracies, '-x')
+    plt.xlabel('epoch')
+    plt.ylabel('accuracy')
+    plt.title('Accuracy vs. No. of epochs');
+    
+
+plot_accuracies(history1)
+
+def plot_losses(history1):
+    """ Plot the losses in each epoch"""
+    train_losses = [x.get('train_loss') for x in history1]
+    val_losses = [x['val_loss'] for x in history1]
+    plt.plot(train_losses, '-bx')
+    plt.plot(val_losses, '-rx')
+    plt.xlabel('epoch')
+    plt.ylabel('loss')
+    plt.legend(['Training', 'Validation'])
+    plt.title('Loss vs. No. of epochs');
+
+plot_losses(history1)
+
+data_dir_test = '../input/plantseedlings/plant-seedlings-final/val'
+
+
+print(len(classes))
+12
+test_dataset = ImageFolder(data_dir_test,transform = transforms.Compose([
+    transforms.Resize((28,28)),transforms.ToTensor()
+]))
+def predict_image(img, model):
+    # Convert to a batch of 1
+    xb = to_device(img.unsqueeze(0), device)
+    # Get predictions from model
+    yb = model(xb)
+    # Pick index with highest probability
+    _, preds  = torch.max(yb, dim=1)
+    # Retrieve the class label
+    return dataset.classes[preds[0].item()]
+img, label = test_dataset[2]
+plt.imshow(img.permute(1, 2, 0))
+print('Label:', dataset.classes[label], ', Predicted:', predict_image(img, model))
+Label: Black-grass , Predicted: Black-grass
